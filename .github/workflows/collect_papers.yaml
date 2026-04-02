@@ -1,0 +1,32 @@
+name: Collect replied papers
+
+on:
+  schedule:
+    # 每天北京时间 23:00 (UTC 15:00) 执行
+    - cron: '0 15 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+    
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+    
+    - name: Collect papers
+      env:
+        FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+        FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+        FEISHU_CHAT_ID: ${{ secrets.FEISHU_CHAT_ID }}
+        FEISHU_BITABLE_APP_TOKEN: ${{ secrets.FEISHU_BITABLE_APP_TOKEN }}
+        FEISHU_COLLECT_TABLE_ID: ${{ secrets.FEISHU_COLLECT_TABLE_ID }}
+      run: python collect_papers.py

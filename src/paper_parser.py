@@ -1,0 +1,175 @@
+"""
+飞书论文收藏机器人 - 论文信息解析
+"""
+
+import re
+import json
+from typing import Dict, Optional
+from datetime import datetime
+
+
+def parse_paper_from_message(message: Dict) -> Optional[Dict]:
+    """
+    从论文消息中解析论文信息
+    
+    Args:
+        message: 飞书消息对象
+        
+    Returns:
+        论文信息字典，包含 arxiv_id, title, title_zh, arxiv_url, relevance, novelty
+    """
+    content_str = message.get("body", {}).get("content", "")
+    if not content_str:
+        return None
+    
+    try:
+        content = json.loads(content_str)
+    except json.JSONDecodeError:
+        return None
+    
+    paper_info = {}
+    
+    # 尝试解析富文本消息
+    zh_content = content.get("zh_cn", {})
+    if zh_content:
+        paper_info = _parse_rich_text(zh_content)
+    
+    # 尝试解析卡片消息
+    if not paper_info.get("arxiv_id"):
+        paper_info = _parse_card_message(content)
+    
+    # 尝试从纯文本中解析
+    if not paper_info.get("arxiv_id"):
+        paper_info = _parse_plain_text(content_str)
+    
+    return paper_info if paper_info.get("arxiv_id") else None
+
+
+def _parse_rich_text(zh_content: Dict) -> Dict:
+    """解析富文本消息"""
+    paper_info = {}
+    
+    for line in zh_content.get("content", []):
+        for item in line:
+            tag = item.get("tag", "")
+            text = item.get("text", "")
+            href = item.get("href", "")
+            
+            # 提取 ArXiv 链接
+            if tag == "a" and "arxiv.org" in href:
+                paper_info["arxiv_url"] = href
+                arxiv_id = _extract_arxiv_id(href)
+                if arxiv_id:
+                    paper_info["arxiv_id"] = arxiv_id
+            
+            # 提取标题
+            if "论文题目:" in text or "Title:" in text:
+                paper_info["title"] = re.sub(r"^(论文题目:|Title:)\s*", "", text).strip()
+            
+            if "中文翻译:" in text or "中文标题:" in text:
+                paper_info["title_zh"] = re.sub(r"^(中文翻译:|中文标题:)\s*", "", text).strip()
+            
+            # 提取评分
+            if "相关度:" in text or "Relevance:" in text:
+                match = re.search(r"\((\d+)/10\)", text)
+                if match:
+                    paper_info["relevance"] = int(match.group(1))
+            
+            if "新颖度:" in text or "Novelty:" in text:
+                match = re.search(r"\((\d+)/10\)", text)
+                if match:
+                    paper_info["novelty"] = int(match.group(1))
+    
+    return paper_info
+
+
+def _parse_card_message(content: Dict) -> Dict:
+    """解析卡片消息"""
+    paper_info = {}
+    
+    # 卡片消息通常有 elements 结构
+    elements = content.get("elements", [])
+    if not elements and content.get("card"):
+        elements = content.get("card", {}).get("elements", [])
+    
+    text_content = json.dumps(content, ensure_ascii=False)
+    
+    # 从整个内容中提取 ArXiv ID
+    arxiv_id = _extract_arxiv_id(text_content)
+    if arxiv_id:
+        paper_info["arxiv_id"] = arxiv_id
+        paper_info["arxiv_url"] = f"https://arxiv.org/abs/{arxiv_id}"
+    
+    # 尝试提取标题
+    title_match = re.search(r"[\"']?title[\"']?\s*[:：]\s*[\"']?([^\"'\n]+)[\"']?", text_content, re.IGNORECASE)
+    if title_match:
+        paper_info["title"] = title_match.group(1).strip()
+    
+    return paper_info
+
+
+def _parse_plain_text(content_str: str) -> Dict:
+    """从纯文本中解析"""
+    paper_info = {}
+    
+    # 提取 ArXiv ID
+    arxiv_id = _extract_arxiv_id(content_str)
+    if arxiv_id:
+        paper_info["arxiv_id"] = arxiv_id
+        paper_info["arxiv_url"] = f"https://arxiv.org/abs/{arxiv_id}"
+    
+    return paper_info
+
+
+def _extract_arxiv_id(text: str) -> Optional[str]:
+    """
+    从文本中提取 ArXiv ID
+    
+    支持格式：
+    - https://arxiv.org/abs/2603.12345
+    - https://arxiv.org/pdf/2603.12345
+    - arxiv:2603.12345
+    - 2603.12345
+    """
+    patterns = [
+        r"arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5})",
+        r"arxiv[:\s]+(\d{4}\.\d{4,5})",
+        r"\b(\d{4}\.\d{4,5})\b"
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    
+    return None
+
+
+def build_record_fields(paper_info: Dict) -> Dict:
+    """
+    构建多维表格记录字段
+    
+    Args:
+        paper_info: 论文信息字典
+        
+    Returns:
+        多维表格字段字典
+    """
+    fields = {
+        "ArXiv ID": paper_info.get("arxiv_id", ""),
+        "标题": paper_info.get("title", ""),
+        "中文标题": paper_info.get("title_zh", ""),
+        "链接": paper_info.get("arxiv_url", ""),
+        "相关度": paper_info.get("relevance", 0),
+        "新颖度": paper_info.get("novelty", 0),
+        "收藏时间": int(datetime.now().timestamp() * 1000)
+    }
+    
+    # 如果有链接，使用超链接格式
+    if paper_info.get("arxiv_url") and paper_info.get("arxiv_id"):
+        fields["ArXiv ID"] = {
+            "link": paper_info["arxiv_url"],
+            "text": paper_info["arxiv_id"]
+        }
+    
+    return fields
