@@ -13,6 +13,7 @@ from src.feishu_api import FeishuClient
 from src.bitable_client import BitableClient
 from src.paper_parser import parse_paper_from_message, build_record_fields
 from src.deepseek_client import DeepSeekClient
+from src.pwc_client import PWCClient
 
 
 def get_today_time_range() -> tuple:
@@ -59,6 +60,10 @@ def collect_papers():
     if deepseek.enabled:
         print("🤖 DeepSeek AI摘要总结已启用")
     
+    # 初始化PWC客户端（检测开源仓库）
+    pwc = PWCClient()
+    print("🔍 开源仓库检测已启用")
+    
     # 获取今天的时间范围
     start_ts, end_ts = get_today_time_range()
     
@@ -92,6 +97,7 @@ def collect_papers():
     collected = 0
     skipped = 0
     failed = 0
+    opensource_count = 0
     
     for msg_id in paper_message_ids:
         # 获取原消息（论文卡片）
@@ -125,22 +131,41 @@ def collect_papers():
                 paper_info.get("title_zh") or paper_info.get("title", "")
             ) or ""
         
+        # 检测开源仓库
+        is_opensource = False
+        github_repo = ""
+        if arxiv_url:
+            print(f"  🔍 检测开源仓库...")
+            opensource_info = pwc.check_opensource(arxiv_url)
+            is_opensource = opensource_info.get("is_opensource", False)
+            github_repo = opensource_info.get("github_repo", "") or ""
+            if is_opensource:
+                print(f"  🎉 发现开源: {github_repo}")
+                opensource_count += 1
+        
         # 构建字段并写入
-        fields = build_record_fields(paper_info, summary)
+        fields = build_record_fields(
+            paper_info, 
+            summary,
+            is_opensource=is_opensource,
+            github_repo=github_repo
+        )
         
         if bitable.insert_record(fields):
             title = paper_info.get("title_zh") or paper_info.get("title") or arxiv_id
-            print(f"  ✅ 已收藏: {arxiv_id} - {title[:30]}...")
+            status = "🟢" if is_opensource else "⚪"
+            print(f"  {status} 已收藏: {arxiv_id} - {title[:30]}...")
             collected += 1
         else:
             print(f"  ❌ 收藏失败: {arxiv_id}")
             failed += 1
         
-        time.sleep(0.2)  # 避免频率限制
+        time.sleep(0.3)  # 避免频率限制
     
     # 输出统计
     print("=" * 50)
     print(f"📊 完成！收藏 {collected} 篇，跳过 {skipped} 篇，失败 {failed} 篇")
+    print(f"🔗 其中 {opensource_count} 篇已开源")
 
 
 def main():

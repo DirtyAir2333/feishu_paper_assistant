@@ -49,7 +49,7 @@ class BitableClient:
         Returns:
             是否存在
         """
-        return self.check_exists_by_field("链接", arxiv_url)
+        return self.check_exists_by_field("论文链接", arxiv_url)
     
     def check_exists_by_field(self, field_name: str, value: str) -> bool:
         """

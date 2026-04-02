@@ -174,13 +174,20 @@ def _extract_arxiv_id(text: str) -> Optional[str]:
     return None
 
 
-def build_record_fields(paper_info: Dict, summary: str = "") -> Dict:
+def build_record_fields(
+    paper_info: Dict, 
+    summary: str = "",
+    is_opensource: bool = False,
+    github_repo: str = ""
+) -> Dict:
     """
     构建多维表格记录字段
     
     Args:
         paper_info: 论文信息字典
         summary: AI生成的摘要总结（可选）
+        is_opensource: 是否开源
+        github_repo: GitHub仓库链接
         
     Returns:
         多维表格字段字典
@@ -189,19 +196,26 @@ def build_record_fields(paper_info: Dict, summary: str = "") -> Dict:
     
     fields = {
         "论文题目": paper_info.get("title", ""),
-        "中文翻译": paper_info.get("title_zh", ""),
         "论文摘要": summary if summary else paper_info.get("abstract", ""),
+        "是否开源": "已开源" if is_opensource else "未开源",
         "第一作者": paper_info.get("first_author", ""),
         "相关度": paper_info.get("relevance", 0),
         "新颖度": paper_info.get("novelty", 0),
         "收藏时间": int(datetime.now().timestamp() * 1000)
     }
     
-    # 链接字段 - 超链接格式
+    # 论文链接字段 - 超链接格式
     if arxiv_url:
-        fields["链接"] = {
+        fields["论文链接"] = {
             "link": arxiv_url,
             "text": arxiv_url
+        }
+    
+    # 仓库链接字段 - 超链接格式（仅当有开源仓库时）
+    if github_repo:
+        fields["仓库链接"] = {
+            "link": github_repo,
+            "text": github_repo
         }
     
     return fields
