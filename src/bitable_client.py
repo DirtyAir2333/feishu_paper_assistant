@@ -29,10 +29,35 @@ class BitableClient:
     
     def check_exists(self, arxiv_id: str) -> bool:
         """
-        检查论文是否已存在
+        检查论文是否已存在（通过ArXiv ID）
         
         Args:
             arxiv_id: ArXiv论文ID
+            
+        Returns:
+            是否存在
+        """
+        return self.check_exists_by_field("论文题目", arxiv_id)
+    
+    def check_exists_by_link(self, arxiv_url: str) -> bool:
+        """
+        检查论文是否已存在（通过链接）
+        
+        Args:
+            arxiv_url: ArXiv论文链接
+            
+        Returns:
+            是否存在
+        """
+        return self.check_exists_by_field("链接", arxiv_url)
+    
+    def check_exists_by_field(self, field_name: str, value: str) -> bool:
+        """
+        通过指定字段检查记录是否存在
+        
+        Args:
+            field_name: 字段名
+            value: 字段值
             
         Returns:
             是否存在
@@ -43,9 +68,9 @@ class BitableClient:
             "filter": {
                 "conjunction": "and",
                 "conditions": [{
-                    "field_name": "ArXiv ID",
+                    "field_name": field_name,
                     "operator": "contains",
-                    "value": [arxiv_id]
+                    "value": [value]
                 }]
             }
         }
@@ -58,7 +83,7 @@ class BitableClient:
                 items = data.get("data", {}).get("items", [])
                 return len(items) > 0
             else:
-                print(f"⚠️ 检查存在性失败: {data.get('msg')}")
+                # 字段不存在时不打印警告
                 return False
         except Exception as e:
             print(f"⚠️ 检查存在性异常: {e}")

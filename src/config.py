@@ -25,6 +25,10 @@ class Config:
     # API 基础URL
     BASE_URL = "https://open.feishu.cn/open-apis"
     
+    # DeepSeek配置
+    DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
+    DEEPSEEK_PROMPT = os.getenv('DEEPSEEK_PROMPT')
+    
     # 日志级别
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
     
@@ -46,3 +50,8 @@ class Config:
             return False
         
         return True
+    
+    @classmethod
+    def has_deepseek(cls) -> bool:
+        """检查是否配置了DeepSeek"""
+        return bool(cls.DEEPSEEK_API_KEY)

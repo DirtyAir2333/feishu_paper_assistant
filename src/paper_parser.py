@@ -49,7 +49,11 @@ def _parse_rich_text(zh_content: Dict) -> Dict:
     """解析富文本消息"""
     paper_info = {}
     
-    for line in zh_content.get("content", []):
+    content_lines = zh_content.get("content", [])
+    is_abstract_section = False
+    abstract_lines = []
+    
+    for line in content_lines:
         for item in line:
             tag = item.get("tag", "")
             text = item.get("text", "")
@@ -69,6 +73,24 @@ def _parse_rich_text(zh_content: Dict) -> Dict:
             if "中文翻译:" in text or "中文标题:" in text:
                 paper_info["title_zh"] = re.sub(r"^(中文翻译:|中文标题:)\s*", "", text).strip()
             
+            # 提取摘要
+            if "论文摘要:" in text:
+                is_abstract_section = True
+                continue
+            
+            if is_abstract_section:
+                if text == "---" or "作者信息:" in text:
+                    is_abstract_section = False
+                    paper_info["abstract"] = "\n".join(abstract_lines).strip()
+                elif text and text != "---":
+                    abstract_lines.append(text)
+            
+            # 提取第一作者
+            if "第一作者:" in text:
+                match = re.search(r"第一作者:\s*([^,，]+)", text)
+                if match:
+                    paper_info["first_author"] = match.group(1).strip()
+            
             # 提取评分
             if "相关度:" in text or "Relevance:" in text:
                 match = re.search(r"\((\d+)/10\)", text)
@@ -79,6 +101,10 @@ def _parse_rich_text(zh_content: Dict) -> Dict:
                 match = re.search(r"\((\d+)/10\)", text)
                 if match:
                     paper_info["novelty"] = int(match.group(1))
+    
+    # 如果摘要还在收集中
+    if abstract_lines and "abstract" not in paper_info:
+        paper_info["abstract"] = "\n".join(abstract_lines).strip()
     
     return paper_info
 
@@ -145,35 +171,28 @@ def _extract_arxiv_id(text: str) -> Optional[str]:
     return None
 
 
-def build_record_fields(paper_info: Dict) -> Dict:
+def build_record_fields(paper_info: Dict, summary: str = "") -> Dict:
     """
     构建多维表格记录字段
     
     Args:
         paper_info: 论文信息字典
+        summary: AI生成的摘要总结（可选）
         
     Returns:
         多维表格字段字典
     """
     arxiv_url = paper_info.get("arxiv_url", "")
-    arxiv_id = paper_info.get("arxiv_id", "")
     
     fields = {
-        "标题": paper_info.get("title", ""),
-        "中文标题": paper_info.get("title_zh", ""),
+        "论文题目": paper_info.get("title", ""),
+        "中文翻译": paper_info.get("title_zh", ""),
+        "论文摘要": summary if summary else paper_info.get("abstract", ""),
+        "第一作者": paper_info.get("first_author", ""),
         "相关度": paper_info.get("relevance", 0),
         "新颖度": paper_info.get("novelty", 0),
         "收藏时间": int(datetime.now().timestamp() * 1000)
     }
-    
-    # ArXiv ID 超链接格式
-    if arxiv_url and arxiv_id:
-        fields["ArXiv ID"] = {
-            "link": arxiv_url,
-            "text": arxiv_id
-        }
-    else:
-        fields["ArXiv ID"] = arxiv_id
     
     # 链接字段 - 超链接格式
     if arxiv_url:

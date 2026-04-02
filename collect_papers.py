@@ -5,13 +5,14 @@
 """
 
 import time
-from datetime import datetime, timedelta
-from typing import Set
+from datetime import datetime
+from typing import Set, List, Tuple
 
 from src.config import Config
 from src.feishu_api import FeishuClient
 from src.bitable_client import BitableClient
 from src.paper_parser import parse_paper_from_message, build_record_fields
+from src.deepseek_client import DeepSeekClient
 
 
 def get_today_time_range() -> tuple:
@@ -53,6 +54,11 @@ def collect_papers():
     # 初始化多维表格客户端
     bitable = BitableClient(feishu.token)
     
+    # 初始化DeepSeek客户端（可选）
+    deepseek = DeepSeekClient()
+    if deepseek.enabled:
+        print("🤖 DeepSeek AI摘要总结已启用")
+    
     # 获取今天的时间范围
     start_ts, end_ts = get_today_time_range()
     
@@ -69,16 +75,20 @@ def collect_papers():
         print("📭 今日暂无回复消息")
         return
     
-    # 去重：收集被回复的论文消息 ID
-    paper_message_ids: Set[str] = set()
-    for msg in reply_messages:
+    # 去重：收集被回复的论文消息 ID，保持顺序
+    paper_message_ids: List[str] = []
+    seen_ids: Set[str] = set()
+    
+    # 按时间正序处理（回复消息已按时间倒序，需要反转）
+    for msg in reversed(reply_messages):
         parent_id = msg.get("parent_id") or msg.get("root_id")
-        if parent_id:
-            paper_message_ids.add(parent_id)
+        if parent_id and parent_id not in seen_ids:
+            paper_message_ids.append(parent_id)
+            seen_ids.add(parent_id)
     
     print(f"📄 涉及 {len(paper_message_ids)} 条被回复的消息")
     
-    # 处理每篇论文
+    # 处理每篇论文（正序）
     collected = 0
     skipped = 0
     failed = 0
@@ -97,16 +107,26 @@ def collect_papers():
             print(f"  ⚠️ 非论文消息或解析失败: {msg_id[:20]}...")
             continue
         
-        arxiv_id = paper_info["arxiv_id"]
+        arxiv_id = paper_info.get("arxiv_id", "unknown")
         
-        # 检查是否已存在
-        if bitable.check_exists(arxiv_id):
+        # 检查是否已存在（使用链接字段）
+        arxiv_url = paper_info.get("arxiv_url", "")
+        if arxiv_url and bitable.check_exists_by_link(arxiv_url):
             print(f"  ⏭️ 已存在: {arxiv_id}")
             skipped += 1
             continue
         
+        # 使用DeepSeek生成摘要总结
+        summary = ""
+        if deepseek.enabled and paper_info.get("abstract"):
+            print(f"  🤖 正在生成AI摘要...")
+            summary = deepseek.summarize_abstract(
+                paper_info["abstract"],
+                paper_info.get("title_zh") or paper_info.get("title", "")
+            ) or ""
+        
         # 构建字段并写入
-        fields = build_record_fields(paper_info)
+        fields = build_record_fields(paper_info, summary)
         
         if bitable.insert_record(fields):
             title = paper_info.get("title_zh") or paper_info.get("title") or arxiv_id
