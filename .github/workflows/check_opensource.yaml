@@ -1,13 +1,13 @@
-name: Collect replied papers
+name: Check opensource status
 
 on:
   schedule:
-    # 每天北京时间 23:30 (UTC 15:30) 执行
-    - cron: '30 15 * * *'
+    # 每周日北京时间 23:30 (UTC 15:30) 执行
+    - cron: '30 15 * * 0'
   workflow_dispatch:  # 允许手动触发
 
 jobs:
-  collect:
+  check:
     runs-on: ubuntu-latest
     
     steps:
@@ -22,12 +22,10 @@ jobs:
     - name: Install dependencies
       run: pip install -r requirements.txt
     
-    - name: Collect papers
+    - name: Check opensource status
       env:
         FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
         FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
-        FEISHU_CHAT_ID: ${{ secrets.FEISHU_CHAT_ID }}
         FEISHU_BITABLE_APP_TOKEN: ${{ secrets.FEISHU_BITABLE_APP_TOKEN }}
         FEISHU_COLLECT_TABLE_ID: ${{ secrets.FEISHU_COLLECT_TABLE_ID }}
-        DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-      run: python collect_papers.py
+      run: python check_opensource.py
