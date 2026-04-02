@@ -16,7 +16,7 @@ def parse_paper_from_message(message: Dict) -> Optional[Dict]:
         message: 飞书消息对象
         
     Returns:
-        论文信息字典，包含 arxiv_id, title, title_zh, arxiv_url, relevance, novelty
+        论文信息字典，包含 arxiv_id, title, title_zh, arxiv_url, relevance, novelty, abstract, first_author
     """
     content_str = message.get("body", {}).get("content", "")
     if not content_str:
@@ -29,10 +29,15 @@ def parse_paper_from_message(message: Dict) -> Optional[Dict]:
     
     paper_info = {}
     
-    # 尝试解析富文本消息
-    zh_content = content.get("zh_cn", {})
-    if zh_content:
-        paper_info = _parse_rich_text(zh_content)
+    # 尝试解析 post 类型消息（直接有 content 字段）
+    if "content" in content and isinstance(content.get("content"), list):
+        paper_info = _parse_post_message(content)
+    
+    # 尝试解析富文本消息（有 zh_cn 包装）
+    if not paper_info.get("arxiv_id"):
+        zh_content = content.get("zh_cn", {})
+        if zh_content:
+            paper_info = _parse_post_message(zh_content)
     
     # 尝试解析卡片消息
     if not paper_info.get("arxiv_id"):
@@ -45,11 +50,11 @@ def parse_paper_from_message(message: Dict) -> Optional[Dict]:
     return paper_info if paper_info.get("arxiv_id") else None
 
 
-def _parse_rich_text(zh_content: Dict) -> Dict:
-    """解析富文本消息"""
+def _parse_post_message(content: Dict) -> Dict:
+    """解析 post 类型消息"""
     paper_info = {}
     
-    content_lines = zh_content.get("content", [])
+    content_lines = content.get("content", [])
     is_abstract_section = False
     abstract_lines = []
     
@@ -66,22 +71,30 @@ def _parse_rich_text(zh_content: Dict) -> Dict:
                 if arxiv_id:
                     paper_info["arxiv_id"] = arxiv_id
             
-            # 提取标题
-            if "论文题目:" in text or "Title:" in text:
-                paper_info["title"] = re.sub(r"^(论文题目:|Title:)\s*", "", text).strip()
+            # 提取英文标题
+            if text.startswith("论文题目:") or text.startswith("Title:"):
+                title = re.sub(r"^(论文题目:|Title:)\s*", "", text).strip()
+                paper_info["title"] = title
             
-            if "中文翻译:" in text or "中文标题:" in text:
-                paper_info["title_zh"] = re.sub(r"^(中文翻译:|中文标题:)\s*", "", text).strip()
+            # 提取中文翻译
+            if text.startswith("中文翻译:") or text.startswith("中文标题:"):
+                title_zh = re.sub(r"^(中文翻译:|中文标题:)\s*", "", text).strip()
+                paper_info["title_zh"] = title_zh
             
             # 提取摘要
-            if "论文摘要:" in text:
+            if text == "论文摘要:" or text.startswith("论文摘要:"):
                 is_abstract_section = True
+                # 如果摘要在同一行
+                abstract_text = text.replace("论文摘要:", "").strip()
+                if abstract_text:
+                    abstract_lines.append(abstract_text)
                 continue
             
             if is_abstract_section:
-                if text == "---" or "作者信息:" in text:
+                if text == "---" or text.startswith("作者信息:"):
                     is_abstract_section = False
-                    paper_info["abstract"] = "\n".join(abstract_lines).strip()
+                    if abstract_lines:
+                        paper_info["abstract"] = "\n".join(abstract_lines).strip()
                 elif text and text != "---":
                     abstract_lines.append(text)
             
@@ -91,7 +104,7 @@ def _parse_rich_text(zh_content: Dict) -> Dict:
                 if match:
                     paper_info["first_author"] = match.group(1).strip()
             
-            # 提取评分
+            # 提取评分 - 支持 [4/5] (8/10) 格式
             if "相关度:" in text or "Relevance:" in text:
                 match = re.search(r"\((\d+)/10\)", text)
                 if match:
@@ -113,11 +126,6 @@ def _parse_card_message(content: Dict) -> Dict:
     """解析卡片消息"""
     paper_info = {}
     
-    # 卡片消息通常有 elements 结构
-    elements = content.get("elements", [])
-    if not elements and content.get("card"):
-        elements = content.get("card", {}).get("elements", [])
-    
     text_content = json.dumps(content, ensure_ascii=False)
     
     # 从整个内容中提取 ArXiv ID
@@ -125,11 +133,6 @@ def _parse_card_message(content: Dict) -> Dict:
     if arxiv_id:
         paper_info["arxiv_id"] = arxiv_id
         paper_info["arxiv_url"] = f"https://arxiv.org/abs/{arxiv_id}"
-    
-    # 尝试提取标题
-    title_match = re.search(r"[\"']?title[\"']?\s*[:：]\s*[\"']?([^\"'\n]+)[\"']?", text_content, re.IGNORECASE)
-    if title_match:
-        paper_info["title"] = title_match.group(1).strip()
     
     return paper_info
 
