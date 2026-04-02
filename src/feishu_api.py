@@ -66,9 +66,8 @@ class FeishuClient:
         params = {
             "container_id_type": "chat",
             "container_id": Config.CHAT_ID,
-            "start_time": str(start_time),
-            "end_time": str(end_time),
-            "page_size": 50
+            "page_size": 50,
+            "sort_type": "ByCreateTimeDesc"  # 按时间倒序，最新消息在前
         }
         
         all_messages = []
@@ -142,10 +141,14 @@ class FeishuClient:
         """
         all_messages = self.get_chat_messages(start_time, end_time)
         
-        # 筛选出有 parent_id 或 root_id 的消息（即回复消息）
-        reply_messages = [
-            msg for msg in all_messages
-            if msg.get("parent_id") or msg.get("root_id")
-        ]
+        # 筛选出有 parent_id 或 root_id 的消息（即回复消息），并在时间范围内
+        reply_messages = []
+        for msg in all_messages:
+            create_time = int(msg.get("create_time", 0))
+            has_parent = msg.get("parent_id") or msg.get("root_id")
+            
+            # 时间范围过滤 + 是否为回复消息
+            if has_parent and start_time <= create_time <= end_time:
+                reply_messages.append(msg)
         
         return reply_messages

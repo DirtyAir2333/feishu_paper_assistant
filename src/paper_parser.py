@@ -155,21 +155,31 @@ def build_record_fields(paper_info: Dict) -> Dict:
     Returns:
         多维表格字段字典
     """
+    arxiv_url = paper_info.get("arxiv_url", "")
+    arxiv_id = paper_info.get("arxiv_id", "")
+    
     fields = {
-        "ArXiv ID": paper_info.get("arxiv_id", ""),
         "标题": paper_info.get("title", ""),
         "中文标题": paper_info.get("title_zh", ""),
-        "链接": paper_info.get("arxiv_url", ""),
         "相关度": paper_info.get("relevance", 0),
         "新颖度": paper_info.get("novelty", 0),
         "收藏时间": int(datetime.now().timestamp() * 1000)
     }
     
-    # 如果有链接，使用超链接格式
-    if paper_info.get("arxiv_url") and paper_info.get("arxiv_id"):
+    # ArXiv ID 超链接格式
+    if arxiv_url and arxiv_id:
         fields["ArXiv ID"] = {
-            "link": paper_info["arxiv_url"],
-            "text": paper_info["arxiv_id"]
+            "link": arxiv_url,
+            "text": arxiv_id
+        }
+    else:
+        fields["ArXiv ID"] = arxiv_id
+    
+    # 链接字段 - 超链接格式
+    if arxiv_url:
+        fields["链接"] = {
+            "link": arxiv_url,
+            "text": arxiv_url
         }
     
     return fields

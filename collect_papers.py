@@ -16,18 +16,16 @@ from src.paper_parser import parse_paper_from_message, build_record_fields
 
 def get_today_time_range() -> tuple:
     """
-    获取今天的时间范围（北京时间）
+    获取今天的时间范围
     
     Returns:
         (start_timestamp_ms, end_timestamp_ms)
     """
-    # 获取当前北京时间
-    now = datetime.utcnow() + timedelta(hours=8)
+    now = datetime.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     
-    # 转回 UTC 时间戳（毫秒）
-    start_ts = int((today_start - timedelta(hours=8)).timestamp() * 1000)
-    end_ts = int((now - timedelta(hours=8)).timestamp() * 1000)
+    start_ts = int(today_start.timestamp() * 1000)
+    end_ts = int(now.timestamp() * 1000)
     
     return start_ts, end_ts
 
@@ -58,7 +56,7 @@ def collect_papers():
     # 获取今天的时间范围
     start_ts, end_ts = get_today_time_range()
     
-    now = datetime.utcnow() + timedelta(hours=8)
+    now = datetime.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     print(f"📅 检查时间范围: {today_start.strftime('%Y-%m-%d')} 00:00 - {now.strftime('%H:%M')}")
     
