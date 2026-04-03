@@ -195,7 +195,7 @@ def filter_by_gpt(
     all_authors, papers, config, deepseek_client, all_papers, selected_papers, sort_dict
 ):
     # deal with config parsing
-    with open(CONFIGS_DIR / "base_prompt.txt", "r") as f:
+    with open(CONFIGS_DIR / "base_prompt.md", "r") as f:
         base_prompt = f.read()
     with open(CONFIGS_DIR / "paper_topics.md", "r") as f:
         criterion = f.read()
@@ -271,7 +271,7 @@ if __name__ == "__main__":
         base_url="https://api.deepseek.com",
     )
     # deal with config parsing
-    with open(CONFIGS_DIR / "base_prompt.txt", "r") as f:
+    with open(CONFIGS_DIR / "base_prompt.md", "r") as f:
         base_prompt = f.read()
     with open(CONFIGS_DIR / "paper_topics.md", "r") as f:
         criterion = f.read()
