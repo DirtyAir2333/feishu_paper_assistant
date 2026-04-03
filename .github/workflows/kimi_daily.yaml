@@ -37,7 +37,7 @@ jobs:
         FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
         FEISHU_CHAT_ID: ${{ secrets.FEISHU_CHAT_ID }}
       run: |
-        python run_kimi.py
+        python run_assistant.py
 
     - name: Upload results
       uses: actions/upload-artifact@v4

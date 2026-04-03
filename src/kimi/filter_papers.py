@@ -70,8 +70,12 @@ def calc_price(model, usage):
     if (model == "gpt-3.5-turbo") or (model == "gpt-3.5-turbo-1106"):
         return (0.0015 * usage.prompt_tokens + 0.002 * usage.completion_tokens) / 1000.0
     # DeepSeek models (price in CNY per 1M tokens)
-    if model in ("deepseek-chat", "deepseek-coder"):
+    # deepseek-chat: 0.001/1K input, 0.002/1K output
+    # deepseek-reasoner: 0.004/1K input, 0.016/1K output (thinking mode)
+    if model == "deepseek-chat":
         return (0.001 * usage.prompt_tokens + 0.002 * usage.completion_tokens) / 1000.0
+    if model == "deepseek-reasoner":
+        return (0.004 * usage.prompt_tokens + 0.016 * usage.completion_tokens) / 1000.0
     return 0.0
 
 
