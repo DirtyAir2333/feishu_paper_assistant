@@ -8,7 +8,7 @@ from pathlib import Path
 
 import retry
 from dotenv import load_dotenv
-from anthropic import Anthropic
+from openai import OpenAI
 from tqdm import tqdm
 
 # Load environment variables from .env file (for local development)
@@ -69,15 +69,15 @@ def calc_price(model, usage):
         return (0.03 * usage.prompt_tokens + 0.06 * usage.completion_tokens) / 1000.0
     if (model == "gpt-3.5-turbo") or (model == "gpt-3.5-turbo-1106"):
         return (0.0015 * usage.prompt_tokens + 0.002 * usage.completion_tokens) / 1000.0
-    # Kimi models (price in CNY per 1K tokens)
-    if model in ("kimi-k2.5", "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"):
-        return (0.014 * usage.prompt_tokens + 0.014 * usage.completion_tokens) / 1000.0
+    # DeepSeek models (price in CNY per 1M tokens)
+    if model in ("deepseek-chat", "deepseek-coder"):
+        return (0.001 * usage.prompt_tokens + 0.002 * usage.completion_tokens) / 1000.0
     return 0.0
 
 
 @retry.retry(tries=3, delay=2)
-def call_chatgpt(full_prompt, kimi_client, model):
-    return kimi_client.messages.create(
+def call_chatgpt(full_prompt, deepseek_client, model):
+    return deepseek_client.chat.completions.create(
         model=model,
         max_tokens=4000,
         temperature=0.0,
@@ -85,10 +85,10 @@ def call_chatgpt(full_prompt, kimi_client, model):
     )
 
 
-def run_and_parse_chatgpt(full_prompt, kimi_client, config):
+def run_and_parse_chatgpt(full_prompt, deepseek_client, config):
     # just runs the chatgpt prompt, tries to parse the resulting JSON
-    completion = call_chatgpt(full_prompt, kimi_client, config["SELECTION"]["model"])
-    out_text = completion.content[0].text
+    completion = call_chatgpt(full_prompt, deepseek_client, config["SELECTION"]["model"])
+    out_text = completion.choices[0].message.content
     out_text = re.sub("```jsonl\n", "", out_text)
     out_text = re.sub("```", "", out_text)
     out_text = re.sub(r"\n+", "\n", out_text)
@@ -105,11 +105,11 @@ def run_and_parse_chatgpt(full_prompt, kimi_client, config):
                 print("Failed to parse LM output as json")
                 print(out_text)
                 print("RAW output")
-                print(completion.content[0].text)
+                print(completion.choices[0].message.content)
             continue
-    # Estimate cost (Kimi pricing: ~0.014 CNY per 1K tokens input/output)
+    # Estimate cost (DeepSeek pricing: ~0.001 CNY per 1K tokens input, 0.002 output)
     estimated_tokens = len(full_prompt) // 4 + len(out_text) // 4
-    cost = 0.014 * estimated_tokens / 1000.0
+    cost = 0.0015 * estimated_tokens / 1000.0
     return json_dicts, cost
 
 
@@ -137,7 +137,7 @@ def batched(items, batch_size):
 
 
 def filter_papers_by_title(
-    papers, config, kimi_client, base_prompt, criterion
+    papers, config, deepseek_client, base_prompt, criterion
 ) -> List[Paper]:
     filter_postfix = 'Identify any papers that are absolutely and completely irrelavent to the criteria, and you are absolutely sure your friend will not enjoy, formatted as a list of arxiv ids like ["ID1", "ID2", "ID3"..]. Be extremely cautious, and if you are unsure at all, do not add a paper in this list. You will check it in detail later.\n Directly respond with the list, do not add ANY extra text before or after the list. Even if every paper seems irrelevant, please keep at least TWO papers'
     batches_of_papers = batched(papers, 20)
@@ -149,9 +149,9 @@ def filter_papers_by_title(
             base_prompt + "\n " + criterion + "\n" + papers_string + filter_postfix
         )
         model = config["SELECTION"]["model"]
-        completion = call_chatgpt(full_prompt, kimi_client, model)
-        cost += calc_price(model, completion)
-        out_text = completion.content[0].text
+        completion = call_chatgpt(full_prompt, deepseek_client, model)
+        cost += calc_price(model, completion.usage)
+        out_text = completion.choices[0].message.content
         try:
             filtered_set = set(json.loads(out_text))
             for paper in batch:
@@ -172,7 +172,7 @@ def paper_to_titles(paper_entry: Paper) -> str:
 
 
 def run_on_batch(
-    paper_batch, base_prompt, criterion, postfix_prompt, kimi_client, config
+    paper_batch, base_prompt, criterion, postfix_prompt, deepseek_client, config
 ):
     batch_str = [paper_to_string(paper) for paper in paper_batch]
     full_prompt = "\n".join(
@@ -183,12 +183,12 @@ def run_on_batch(
             postfix_prompt,
         ]
     )
-    json_dicts, cost = run_and_parse_chatgpt(full_prompt, kimi_client, config)
+    json_dicts, cost = run_and_parse_chatgpt(full_prompt, deepseek_client, config)
     return json_dicts, cost
 
 
 def filter_by_gpt(
-    all_authors, papers, config, kimi_client, all_papers, selected_papers, sort_dict
+    all_authors, papers, config, deepseek_client, all_papers, selected_papers, sort_dict
 ):
     # deal with config parsing
     with open(CONFIGS_DIR / "base_prompt.txt", "r") as f:
@@ -205,7 +205,7 @@ def filter_by_gpt(
             print(str(len(paper_list)) + " papers after hindex filtering")
         cost = 0
         paper_list, cost = filter_papers_by_title(
-            paper_list, config, kimi_client, base_prompt, criterion
+            paper_list, config, deepseek_client, base_prompt, criterion
         )
         if config["OUTPUT"].getboolean("debug_messages"):
             print(
@@ -221,7 +221,7 @@ def filter_by_gpt(
         for batch in tqdm(batch_of_papers):
             scored_in_batch = []
             json_dicts, cost = run_on_batch(
-                batch, base_prompt, criterion, postfix_prompt, kimi_client, config
+                batch, base_prompt, criterion, postfix_prompt, deepseek_client, config
             )
             all_cost += cost
             for jdict in json_dicts:
@@ -257,14 +257,14 @@ if __name__ == "__main__":
     config.read(CONFIGS_DIR / "config.ini")
 
     # Load API keys from environment variables
-    KIMI_KEY = os.environ.get("KIMI_KEY")
-    if KIMI_KEY is None:
+    DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+    if DEEPSEEK_API_KEY is None:
         raise ValueError(
-            "Kimi key is not set - please set KIMI_KEY to your Moonshot API key"
+            "DeepSeek key is not set - please set DEEPSEEK_API_KEY to your DeepSeek API key"
         )
-    kimi_client = Anthropic(
-        api_key=KIMI_KEY,
-        base_url="https://api.kimi.com/coding/",
+    deepseek_client = OpenAI(
+        api_key=DEEPSEEK_API_KEY,
+        base_url="https://api.deepseek.com",
     )
     # deal with config parsing
     with open(CONFIGS_DIR / "base_prompt.txt", "r") as f:
@@ -295,7 +295,7 @@ if __name__ == "__main__":
     total_cost = 0
     for batch in tqdm(papers):
         json_dicts, cost = run_on_batch(
-            batch, base_prompt, criterion, postfix_prompt, kimi_client, config
+            batch, base_prompt, criterion, postfix_prompt, deepseek_client, config
         )
         total_cost += cost
         for paper in batch:

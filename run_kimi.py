@@ -19,7 +19,6 @@ ArXiv 每日论文筛选与推送脚本
     - DEEPSEEK_KEY: DeepSeek API Key（可选，用于翻译）
 """
 import sys
-import os
 from pathlib import Path
 
 # 添加项目根目录到路径
@@ -28,4 +27,5 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # 运行 kimi 主模块
 if __name__ == "__main__":
-    from src.kimi.main import *
+    import runpy
+    runpy.run_module("src.kimi.main", run_name="__main__")

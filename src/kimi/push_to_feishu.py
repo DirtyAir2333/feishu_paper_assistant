@@ -10,7 +10,6 @@ from typing import List, Dict, Union
 import re
 
 from dotenv import load_dotenv
-from anthropic import Anthropic
 from openai import OpenAI
 
 # Load environment variables from .env file (for local development)
@@ -24,23 +23,12 @@ OUTPUT_DIR = PROJECT_ROOT / "out"
 
 def get_deepseek_client() -> OpenAI | None:
     """Create DeepSeek client if key exists."""
-    deepseek_key = os.environ.get("DEEPSEEK_KEY")
+    deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
     if not deepseek_key:
         return None
     return OpenAI(
         api_key=deepseek_key,
         base_url="https://api.deepseek.com",
-    )
-
-
-def get_kimi_client() -> Anthropic | None:
-    """Create Kimi client if key exists."""
-    kimi_key = os.environ.get("KIMI_KEY")
-    if not kimi_key:
-        return None
-    return Anthropic(
-        api_key=kimi_key,
-        base_url="https://api.kimi.com/coding/",
     )
 
 
@@ -112,58 +100,23 @@ def translate_with_deepseek(paper_entry: Dict, deepseek_client: OpenAI) -> Dict:
     }
 
 
-def translate_paper_to_zh(paper_entry: Dict, kimi_client: Anthropic | None, deepseek_client: OpenAI | None = None) -> Dict:
-    """Translate title/abstract and generate Chinese keywords.
-    
-    Priority: DeepSeek > Kimi > fallback (no translation)
-    """
+def translate_paper_to_zh(paper_entry: Dict, deepseek_client: OpenAI | None = None) -> Dict:
+    """Translate title/abstract and generate Chinese keywords using DeepSeek."""
     title = paper_entry["title"]
     abstract = paper_entry["abstract"]
     authors = paper_entry["authors"]
     first_author = authors[0] if authors else "Unknown"
     corresponding_author = authors[-1] if authors else "Unknown"
 
-    # Try DeepSeek first (if available)
+    # Try DeepSeek
     if deepseek_client is not None:
         return translate_with_deepseek(paper_entry, deepseek_client)
 
-    # Fallback to Kimi
-    if kimi_client is None:
-        return {
-            "title_zh": "（未翻译）",
-            "abstract_zh": abstract[:200] + ("..." if len(abstract) > 200 else ""),
-            "keywords_zh": ["未生成关键词"],
-            "first_author": first_author,
-            "corresponding_author": corresponding_author,
-        }
-
-    prompt = f"""
-你是学术论文翻译助手。请将下面论文信息翻译为中文，并输出严格 JSON（不要 markdown 代码块）：
-{{
-  "title_zh": "中文标题",
-  "abstract_zh": "中文摘要（简洁、准确，建议120-220字）",
-  "keywords_zh": ["关键词1", "关键词2", "关键词3", "关键词4", "关键词5"]
-}}
-
-论文标题：{title}
-论文摘要：{abstract[:3000]}
-"""
-    completion = kimi_client.messages.create(
-        model="kimi-k2.5",
-        max_tokens=1200,
-        temperature=0.0,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    out_text = completion.content[0].text.strip()
-    translated = _extract_json_object(out_text)
-    keywords = translated.get("keywords_zh", [])
-    if not isinstance(keywords, list) or len(keywords) == 0:
-        keywords = ["未生成关键词"]
-
+    # Fallback (no translation)
     return {
-        "title_zh": translated.get("title_zh", "（未翻译）"),
-        "abstract_zh": translated.get("abstract_zh", "（未翻译）"),
-        "keywords_zh": keywords[:5],
+        "title_zh": "（未翻译）",
+        "abstract_zh": abstract[:200] + ("..." if len(abstract) > 200 else ""),
+        "keywords_zh": ["未生成关键词"],
         "first_author": first_author,
         "corresponding_author": corresponding_author,
     }
@@ -346,23 +299,20 @@ def push_to_feishu(papers_dict: Dict, chat_id: str = None):
     # Get access token
     token = get_tenant_access_token(app_id, app_secret)
 
-    # Try DeepSeek first, then fall back to Kimi
+    # Use DeepSeek for translation
     deepseek_client = get_deepseek_client()
-    kimi_client = get_kimi_client()
     
     if deepseek_client is not None:
         print("Using DeepSeek for translation")
-    elif kimi_client is not None:
-        print("Using Kimi for translation")
     else:
-        print("Warning: Neither DEEPSEEK_KEY nor KIMI_KEY set - sending untranslated Chinese fields fallback")
+        print("Warning: DEEPSEEK_API_KEY not set - sending untranslated Chinese fields fallback")
 
     # Prepare paper lists/messages
     title_list = []
     paper_posts = []
 
     for i, (paper_id, paper) in enumerate(papers_dict.items(), 1):
-        translated = translate_paper_to_zh(paper, kimi_client, deepseek_client)
+        translated = translate_paper_to_zh(paper, deepseek_client)
         score_preview = score_to_emoji_stars(paper)
         title_list.append(f"{i}. {translated['title_zh']} {score_preview}")
         paper_posts.append(render_paper_post_content(paper, i, translated))

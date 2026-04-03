@@ -31,8 +31,7 @@ jobs:
 
     - name: Run paper filter
       env:
-        KIMI_KEY: ${{ secrets.KIMI_KEY }}
-        DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_KEY }}
+        DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         S2_KEY: ${{ secrets.S2_KEY }}
         FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
         FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}

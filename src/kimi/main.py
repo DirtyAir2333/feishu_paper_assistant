@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from anthropic import Anthropic
+from openai import OpenAI
 from requests import Session
 from typing import TypeVar, Generator
 import io
@@ -214,14 +214,14 @@ if __name__ == "__main__":
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     S2_API_KEY = os.environ.get("S2_KEY")
-    KIMI_KEY = os.environ.get("KIMI_KEY")
-    if KIMI_KEY is None:
+    DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+    if DEEPSEEK_API_KEY is None:
         raise ValueError(
-            "Kimi key is not set - please set KIMI_KEY to your Moonshot API key"
+            "DeepSeek key is not set - please set DEEPSEEK_API_KEY to your DeepSeek API key"
         )
-    kimi_client = Anthropic(
-        api_key=KIMI_KEY,
-        base_url="https://api.kimi.com/coding/",
+    deepseek_client = OpenAI(
+        api_key=DEEPSEEK_API_KEY,
+        base_url="https://api.deepseek.com",
     )
     # load the author list
     with io.open(CONFIGS_DIR / "authors.md", "r") as fopen:
@@ -263,7 +263,7 @@ if __name__ == "__main__":
         all_authors,
         papers,
         config,
-        kimi_client,
+        deepseek_client,
         all_papers,
         selected_papers,
         sort_dict,
