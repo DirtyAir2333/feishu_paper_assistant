@@ -8,7 +8,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![DeepSeek](https://img.shields.io/badge/LLM-DeepSeek-green.svg)](https://deepseek.com)
 
-[English](#english) | [简体中文](#简体中文)
+[简体中文](#简体中文) | [English](#english)
 
 </div>
 
@@ -93,7 +93,7 @@ python check_opensource.py
 ```
 feishu_paper_assistant/
 ├── .github/workflows/          # GitHub Actions 工作流
-│   ├── kimi_daily.yaml         # 每日论文筛选（北京时间 9:30）
+│   ├── arxiv_daily.yaml        # 每日论文筛选（北京时间 9:30）
 │   ├── collect_papers.yaml     # 每日论文收藏（北京时间 23:30）
 │   └── check_opensource.yaml   # 每周开源检测（周日 23:30）
 ├── src/
@@ -123,7 +123,7 @@ feishu_paper_assistant/
 
 | 工作流 | 执行时间（北京时间） | 功能 |
 |--------|:--------------------:|------|
-| `kimi_daily.yaml` | 每天 09:30 | ArXiv 论文筛选推送 |
+| `arxiv_daily.yaml` | 每天 09:30 | ArXiv 论文筛选推送 |
 | `collect_papers.yaml` | 每天 23:30 | 收藏群聊回复的论文 |
 | `check_opensource.yaml` | 每周日 23:30 | 批量检测开源状态 |
 
@@ -153,6 +153,92 @@ feishu_paper_assistant/
 | 论文筛选评分 | `deepseek-reasoner` | 思考模式，推理质量更高 |
 | 论文翻译 | `deepseek-chat` | 非思考模式，响应速度更快 |
 | 摘要总结 | `deepseek-chat` | 非思考模式，响应速度更快 |
+
+---
+
+## English
+
+### 📖 Introduction
+
+Feishu Paper Assistant is an academic paper management tool based on Feishu (Lark), integrating three core features: **Intelligent Paper Filtering & Push**, **Group Chat Collection**, and **GitHub Open-Source Detection**. It uses DeepSeek LLM for intelligent paper scoring, helping researchers efficiently track the latest academic developments.
+
+### ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔍 **Paper Filtering** | Automatically fetch latest papers from ArXiv RSS, intelligent scoring with DeepSeek-Reasoner |
+| 👤 **Author Tracking** | Auto-track new papers from followed authors via Semantic Scholar ID |
+| 📥 **Chat Collection** | Auto-detect replied papers in Feishu group chat, save to Bitable |
+| 🧠 **AI Summary** | One-sentence summary of paper's core contribution by DeepSeek |
+| 🔗 **Open-Source Detection** | Detect GitHub repos via Papers With Code API |
+| ⏰ **Automation** | GitHub Actions scheduled execution, no manual intervention |
+
+### 🚀 Quick Start
+
+#### 1. Clone Repository
+
+```bash
+git clone https://github.com/DirtyAir2333/feishu_paper_assistant.git
+cd feishu_paper_assistant
+```
+
+#### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+#### 3. Configure Environment Variables
+
+```bash
+cp .env.example .env
+# Edit .env with your API keys
+```
+
+#### 4. Configure Filtering Rules
+
+```bash
+# Configure paper topics for LLM scoring
+cp configs/paper_topics.template.txt configs/paper_topics.md
+
+# Configure tracked authors (Semantic Scholar ID)
+cp configs/authors.template.txt configs/authors.md
+```
+
+#### 5. Run
+
+```bash
+# Paper filtering & push
+python run_assistant.py
+
+# Paper collection (replied papers in chat)
+python collect_papers.py
+
+# Open-source detection
+python check_opensource.py
+```
+
+### ⚙️ Environment Variables
+
+| Variable | Required | Description |
+|----------|:--------:|-------------|
+| `DEEPSEEK_API_KEY` | ✅ | DeepSeek API key (filtering/translation/summary) |
+| `FEISHU_APP_ID` | ✅ | Feishu App ID |
+| `FEISHU_APP_SECRET` | ✅ | Feishu App Secret |
+| `FEISHU_CHAT_ID` | ✅ | Feishu Chat ID |
+| `FEISHU_BITABLE_APP_TOKEN` | Collection | Bitable App Token |
+| `FEISHU_COLLECT_TABLE_ID` | Collection | Collection Table ID |
+| `S2_KEY` | Optional | Semantic Scholar API (faster author queries) |
+
+### 🤖 DeepSeek Model Selection
+
+This project uses DeepSeek-V3.2 (128K context):
+
+| Scenario | Model | Description |
+|----------|-------|-------------|
+| Paper Scoring | `deepseek-reasoner` | Thinking mode, higher reasoning quality |
+| Translation | `deepseek-chat` | Non-thinking mode, faster response |
+| Summarization | `deepseek-chat` | Non-thinking mode, faster response |
 
 ---
 
