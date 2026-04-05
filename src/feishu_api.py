@@ -152,3 +152,34 @@ class FeishuClient:
                 reply_messages.append(msg)
         
         return reply_messages
+    
+    def send_reply_message(self, parent_message_id: str, content: str) -> Optional[str]:
+        """
+        回复指定消息（在 thread 中回复）
+        
+        Args:
+            parent_message_id: 被回复的消息ID
+            content: 回复的文本内容
+            
+        Returns:
+            发送成功返回消息ID，失败返回None
+        """
+        url = f"{self.base_url}/im/v1/messages/{parent_message_id}/reply"
+        
+        payload = {
+            "content": f'{{"text": "{content}"}}',
+            "msg_type": "text"
+        }
+        
+        try:
+            resp = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            data = resp.json()
+            
+            if data.get("code") == 0:
+                return data.get("data", {}).get("message_id")
+            else:
+                print(f"❌ 发送回复消息失败: {data.get('msg')}")
+                return None
+        except Exception as e:
+            print(f"❌ 发送回复消息异常: {e}")
+            return None

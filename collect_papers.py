@@ -156,6 +156,13 @@ def collect_papers():
             status = "🟢" if is_opensource else "⚪"
             print(f"  {status} 已收藏: {arxiv_id} - {title[:30]}...")
             collected += 1
+            
+            # 发送确认消息到群聊（回复原论文消息）
+            opensource_text = f"🔗 开源: {github_repo}" if is_opensource else ""
+            confirm_msg = f"✅ 已收藏论文\\n📄 {title[:50]}\\n🆔 ArXiv: {arxiv_id}"
+            if opensource_text:
+                confirm_msg += f"\\n{opensource_text}"
+            feishu.send_reply_message(msg_id, confirm_msg)
         else:
             print(f"  ❌ 收藏失败: {arxiv_id}")
             failed += 1
