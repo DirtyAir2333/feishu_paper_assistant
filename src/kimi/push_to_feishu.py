@@ -42,8 +42,37 @@ def _extract_json_object(text: str) -> Dict:
         return json.loads(json_text)
     except json.JSONDecodeError:
         # Repair common bad escapes from LLM outputs.
-        repaired = re.sub(r"\\(?![\"\\/bfnrtu])", r"\\\\", json_text)
-        return json.loads(repaired)
+        # Handle invalid escape sequences like \_ \- \. \( \) etc.
+        repaired = re.sub(r"\\(?![\"\\\/bfnrtu])", r"\\\\", json_text)
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            # More aggressive fix: remove all invalid backslash escapes
+            # Keep only valid JSON escapes: \" \\ \/ \b \f \n \r \t \uXXXX
+            def fix_escapes(s: str) -> str:
+                result = []
+                i = 0
+                while i < len(s):
+                    if s[i] == '\\' and i + 1 < len(s):
+                        next_char = s[i + 1]
+                        if next_char in '"\\/bfnrt':
+                            result.append(s[i:i+2])
+                            i += 2
+                        elif next_char == 'u' and i + 5 < len(s):
+                            # Unicode escape \uXXXX
+                            result.append(s[i:i+6])
+                            i += 6
+                        else:
+                            # Invalid escape - just keep the character without backslash
+                            result.append(next_char)
+                            i += 2
+                    else:
+                        result.append(s[i])
+                        i += 1
+                return ''.join(result)
+            
+            fixed = fix_escapes(json_text)
+            return json.loads(fixed)
 
 
 def _load_translate_prompt() -> str:
