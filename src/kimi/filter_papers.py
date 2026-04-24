@@ -69,24 +69,26 @@ def calc_price(model, usage):
         return (0.03 * usage.prompt_tokens + 0.06 * usage.completion_tokens) / 1000.0
     if (model == "gpt-3.5-turbo") or (model == "gpt-3.5-turbo-1106"):
         return (0.0015 * usage.prompt_tokens + 0.002 * usage.completion_tokens) / 1000.0
-    # DeepSeek models (price in CNY per 1M tokens)
-    # deepseek-chat: 0.001/1K input, 0.002/1K output
-    # deepseek-reasoner: 0.004/1K input, 0.016/1K output (thinking mode)
-    if model == "deepseek-chat":
-        return (0.001 * usage.prompt_tokens + 0.002 * usage.completion_tokens) / 1000.0
-    if model == "deepseek-reasoner":
-        return (0.004 * usage.prompt_tokens + 0.016 * usage.completion_tokens) / 1000.0
+    # DeepSeek-V4 prices from official docs, USD per 1M tokens, cache miss pricing.
+    if model == "deepseek-v4-flash":
+        return (0.14 * usage.prompt_tokens + 0.28 * usage.completion_tokens) / 1_000_000.0
+    if model == "deepseek-v4-pro":
+        return (1.74 * usage.prompt_tokens + 3.48 * usage.completion_tokens) / 1_000_000.0
     return 0.0
 
 
 @retry.retry(tries=3, delay=2)
 def call_chatgpt(full_prompt, deepseek_client, model):
-    return deepseek_client.chat.completions.create(
-        model=model,
-        max_tokens=4000,
-        temperature=0.0,
-        messages=[{"role": "user", "content": full_prompt}],
-    )
+    kwargs = {
+        "model": model,
+        "max_tokens": 4000,
+        "temperature": 0.0,
+        "messages": [{"role": "user", "content": full_prompt}],
+    }
+    if model == "deepseek-v4-pro":
+        kwargs["reasoning_effort"] = "high"
+        kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+    return deepseek_client.chat.completions.create(**kwargs)
 
 
 def run_and_parse_chatgpt(full_prompt, deepseek_client, config):
@@ -111,9 +113,7 @@ def run_and_parse_chatgpt(full_prompt, deepseek_client, config):
                 print("RAW output")
                 print(completion.choices[0].message.content)
             continue
-    # Estimate cost (DeepSeek pricing: ~0.001 CNY per 1K tokens input, 0.002 output)
-    estimated_tokens = len(full_prompt) // 4 + len(out_text) // 4
-    cost = 0.0015 * estimated_tokens / 1000.0
+    cost = calc_price(config["SELECTION"]["model"], completion.usage)
     return json_dicts, cost
 
 

@@ -19,6 +19,7 @@ load_dotenv()
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 CONFIGS_DIR = PROJECT_ROOT / "configs"
 OUTPUT_DIR = PROJECT_ROOT / "out"
+FAST_MODEL = "deepseek-v4-flash"
 
 
 def get_deepseek_client() -> OpenAI | None:
@@ -109,10 +110,11 @@ def translate_with_deepseek(paper_entry: Dict, deepseek_client: OpenAI) -> Dict:
     messages.append({"role": "user", "content": user_prompt})
 
     completion = deepseek_client.chat.completions.create(
-        model="deepseek-chat",
+        model=FAST_MODEL,
         max_tokens=1200,
         temperature=0.0,
         messages=messages,
+        extra_body={"thinking": {"type": "disabled"}},
     )
     out_text = completion.choices[0].message.content.strip()
     translated = _extract_json_object(out_text)

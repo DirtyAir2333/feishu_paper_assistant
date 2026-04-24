@@ -9,6 +9,8 @@ from typing import Optional
 
 from .config import Config
 
+FAST_MODEL = "deepseek-v4-flash"
+
 
 class DeepSeekClient:
     """DeepSeek API 客户端"""
@@ -45,13 +47,14 @@ class DeepSeekClient:
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": "deepseek-chat",
+                    "model": FAST_MODEL,
                     "messages": [
                         {"role": "system", "content": "你是一个学术论文摘要总结助手。"},
                         {"role": "user", "content": prompt}
                     ],
                     "max_tokens": 200,
-                    "temperature": 0.3
+                    "temperature": 0.3,
+                    "thinking": {"type": "disabled"}
                 },
                 timeout=30
             )
